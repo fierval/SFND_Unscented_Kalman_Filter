@@ -1,11 +1,18 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.2)
 
-add_definitions(-std=c++11)
+project(playback LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
 
 set(CXX_FLAGS "-Wall")
 set(CMAKE_CXX_FLAGS, "${CXX_FLAGS}")
 
-project(playback)
+set(SOURCE_FILES 
+    src/main.cpp 
+    src/ukf.cpp 
+    src/tools.cpp 
+    src/render/render.cpp)
+
 
 find_package(PCL 1.2 REQUIRED)
 
@@ -15,7 +22,7 @@ add_definitions(${PCL_DEFINITIONS})
 list(REMOVE_ITEM PCL_LIBRARIES "vtkproj4")
 
 
-add_executable (ukf_highway src/main.cpp src/ukf.cpp src/tools.cpp src/render/render.cpp)
+add_executable (ukf_highway ${SOURCE_FILES})
 target_link_libraries (ukf_highway ${PCL_LIBRARIES})
 
 

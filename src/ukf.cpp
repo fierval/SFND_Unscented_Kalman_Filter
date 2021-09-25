@@ -54,6 +54,17 @@ UKF::UKF() {
    * TODO: Complete the initialization. See ukf.h for other member properties.
    * Hint: one or more values initialized above might be wildly off...
    */
+
+  n_aug_ = 7;
+  n_x_ = 5;
+
+  int n_sig = 2 * n_aug_ + 1;
+
+  Xsig_pred_ = MatrixXd(n_x_, n_sig);
+  weights_.resize(n_sig);
+
+  weights_.fill(0.5 / (lambda_ + n_aug_));
+  weights_(0) = lambda_ / (lambda_ + n_aug_);
 }
 
 UKF::~UKF() {}

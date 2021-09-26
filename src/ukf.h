@@ -107,8 +107,7 @@ class UKF {
   double lambda_;
 
   // NIS
-  double nis_radar_;
-  double nis_lidar_;
+  std::vector<double> nis_;
 
 
   /////////////////////////////////////////
@@ -187,13 +186,14 @@ class UKF {
   }
 
   inline void ComputeZpredSandResidual(MeasurementPackage meas_package, Eigen::VectorXd& z_pred, Eigen::MatrixXd& Zsig, Eigen::VectorXd& z, Eigen::MatrixXd& R, Eigen::MatrixXd S, Eigen::VectorXd& z_diff) {
-    
-    z_pred.setZero();
 
+    // z_pred
+    z_pred.setZero();
     for (int i = 0; i < n_sig_; ++i) {
       z_pred += weights_(i) * Zsig.col(i);
     }
 
+    // S - covariance
     S.setZero();
     for (int i = 0; i < n_sig_; ++i) {
       Eigen::VectorXd z_diff_loc = Zsig.col(i) - z_pred;
@@ -220,7 +220,7 @@ class UKF {
     return angle;
   }
 
-  inline void MeasurementUpdate(MeasurementPackage& measurement_package, Eigen::MatrixXd& Zsig, int n_z, Eigen::MatrixXd& S, Eigen::MatrixXd& z_pred, Eigen::VectorXd& z_diff) {
+  inline void MeasurementUpdate(MeasurementPackage& measurement_package, Eigen::MatrixXd& Zsig, int n_z, Eigen::MatrixXd& S, Eigen::VectorXd& z_pred, Eigen::VectorXd& z_diff) {
 
     Eigen::MatrixXd Tc(n_x_, n_z);
     Tc.fill(0.0);
@@ -250,12 +250,7 @@ class UKF {
     x_ += K * z_diff;
     P_ -= K * S * K.transpose();
 
-    if (measurement_package.sensor_type_ == MeasurementPackage::RADAR) {
-      nis_radar_ = z_diff.transpose() * Si * z_diff;
-    }
-    else if (measurement_package.sensor_type_ == MeasurementPackage::LASER) {
-      nis_lidar_ = z_diff.transpose() * Si * z_diff;
-    }
+    nis_[static_cast<int>(measurement_package.sensor_type_)] = z_diff.transpose() * Si * z_diff;
   }
 };
 

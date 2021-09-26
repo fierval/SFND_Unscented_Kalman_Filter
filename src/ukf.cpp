@@ -7,7 +7,8 @@ using Eigen::VectorXd;
 /**
  * Initializes Unscented Kalman filter
  */
-UKF::UKF() {
+UKF::UKF() 
+  : nis_(2) {
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = true;
 
@@ -73,6 +74,7 @@ UKF::UKF() {
   // pre-init useful vars
   P_.setIdentity();
   x_.setZero();
+  std::fill_n(nis_.begin(), 2, 0);
 }
 
 UKF::~UKF() {}
@@ -148,6 +150,8 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   Eigen::VectorXd z_diff(n_z);
   ComputeZpredSandResidual(meas_package, z_pred, Zsig, z, R, S, z_diff);
 
+  // Update!
+  MeasurementUpdate(meas_package, Zsig, n_z, S, z_pred, z_diff);
 }
 
 void UKF::UpdateRadar(MeasurementPackage meas_package) {
@@ -204,4 +208,6 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   Eigen::VectorXd z_diff(n_z);
   ComputeZpredSandResidual(meas_package, z_pred, Zsig, z, R, S, z_diff);
 
+  // Update!
+  MeasurementUpdate(meas_package, Zsig, n_z, S, z_pred, z_diff);
 }

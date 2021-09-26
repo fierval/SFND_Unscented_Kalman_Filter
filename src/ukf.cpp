@@ -58,13 +58,21 @@ UKF::UKF() {
   n_aug_ = 7;
   n_x_ = 5;
 
-  int n_sig = 2 * n_aug_ + 1;
+  n_sig_ = 2 * n_aug_ + 1;
 
-  Xsig_pred_ = MatrixXd(n_x_, n_sig);
-  weights_.resize(n_sig);
+  Xsig_pred_.resize(n_x_, n_sig_);
+  Xsig_aug_.resize(n_aug_, n_sig_);
+  weights_.resize(n_sig_);
 
   weights_.fill(0.5 / (lambda_ + n_aug_));
   weights_(0) = lambda_ / (lambda_ + n_aug_);
+
+  is_initialized_ = -1;
+  lambda_plus_aug_ = std::sqrt(lambda_ + n_aug_);
+
+  // pre-init useful vars
+  P_.setIdentity();
+  x_.setZero();
 }
 
 UKF::~UKF() {}
@@ -74,6 +82,28 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
    * TODO: Complete this function! Make sure you switch between lidar and radar
    * measurements.
    */
+  
+  // Initialization is delegated to each sensor.
+  // Makes for cleaner code
+  switch (meas_package.sensor_type_)
+  {
+  case MeasurementPackage::SensorType::LASER:
+  {
+    UpdateLidar(meas_package);
+    break;
+  }
+  case MeasurementPackage::SensorType::RADAR:
+  {
+    UpdateRadar(meas_package);
+    break;
+  }
+  default:
+    // any sensor we don't know about?
+    assert(false);
+    break;
+  }
+
+  time_us_ = meas_package.timestamp_;
 }
 
 void UKF::Prediction(double delta_t) {
@@ -82,6 +112,7 @@ void UKF::Prediction(double delta_t) {
    * Modify the state vector, x_. Predict sigma points, the state, 
    * and the state covariance matrix.
    */
+  
 }
 
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
@@ -91,6 +122,32 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    * covariance, P_.
    * You can also calculate the lidar NIS, if desired.
    */
+  if (is_initialized_++ <= 0) {
+    x_.head(2) << meas_package.raw_measurements_.head(2);
+    return;
+  }
+
+
+  int n_z = 2;
+  Eigen::MatrixXd S(n_z, n_z);  // Measurement covariance matrix (n_z = 2 for lidar, n_z = 3 for radar)
+
+  // create matrix for sigma points in measurement space
+  Eigen::MatrixXd Zsig(n_z, n_sig_);
+
+  // transform sigma points into measurement space
+  Zsig.row(0) = Xsig_pred_.row(0);
+  Zsig.row(1) = Xsig_pred_.row(1);
+
+  Eigen::MatrixXd R(n_z, n_z);
+  Eigen::VectorXd z(n_z);
+
+  z << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1];
+  R << std_laspx_ * std_laspx_, 0, 0, std_laspy_* std_laspy_;
+
+  Eigen::VectorXd z_pred(n_z);  // Mean predicted measurement
+  Eigen::VectorXd z_diff(n_z);
+  ComputeZpredSandResidual(meas_package, z_pred, Zsig, z, R, S, z_diff);
+
 }
 
 void UKF::UpdateRadar(MeasurementPackage meas_package) {
@@ -99,5 +156,52 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
    * about the object's position. Modify the state vector, x_, and 
    * covariance, P_.
    * You can also calculate the radar NIS, if desired.
+   * 
    */
+  if (is_initialized_++ <= 0) {
+
+    double r = meas_package.raw_measurements_[0];
+    double phi = meas_package.raw_measurements_[1];
+    double r_dot = meas_package.raw_measurements_[2];
+    double cos_phi = std::cos(phi);
+    double sin_phi = std::sin(phi);
+
+    x_ <<
+      r * cos_phi,
+      r* sin_phi,
+      r_dot; // not quite!
+    
+    return;
+  }
+
+  int n_z = 3;
+  Eigen::MatrixXd S(n_z, n_z);  // Measurement covariance matrix (n_z = 2 for lidar, n_z = 3 for radar)
+
+  // transform sigma points into measurement space
+  Eigen::MatrixXd Zsig(n_z, n_sig_);
+
+  for (int i = 0; i < n_sig_; ++i) {
+    double p_x = Xsig_pred_(0, i);
+    double p_y = Xsig_pred_(1, i);
+    double v = Xsig_pred_(2, i);
+    double yaw = Xsig_pred_(3, i);
+
+    double v1 = v * cos(yaw);
+    double v2 = v * sin(yaw);
+
+    Zsig(0, i) = std::sqrt(p_x * p_x + p_y * p_y);                          // r
+    Zsig(1, i) = std::atan2(p_y, p_x);                                      // phi
+    Zsig(2, i) = (p_x * v1 + p_y * v2) / std::sqrt(p_x * p_x + p_y * p_y);  // r_dot
+  }
+
+  Eigen::MatrixXd R(n_z, n_z);
+  Eigen::VectorXd z(n_z);
+
+  z << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], meas_package.raw_measurements_[2];
+  R << std_radr_ * std_radr_, 0, 0, 0, std_radphi_* std_radphi_, 0, 0, 0, std_radrd_* std_radrd_;
+
+  Eigen::VectorXd z_pred(n_z);  // Mean predicted measurement
+  Eigen::VectorXd z_diff(n_z);
+  ComputeZpredSandResidual(meas_package, z_pred, Zsig, z, R, S, z_diff);
+
 }

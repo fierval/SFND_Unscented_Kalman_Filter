@@ -3,6 +3,7 @@
 
 #include "Eigen/Dense"
 #include "measurement_package.h"
+#include <pcl/pcl_macros.h>
 
 class UKF {
  public:
@@ -42,8 +43,9 @@ class UKF {
   void UpdateRadar(MeasurementPackage meas_package);
 
 
-  // initially set to false, set to true in first call of ProcessMeasurement
-  bool is_initialized_;
+  // initially set to -1
+  // increment as each sensor initialization is complete
+  int is_initialized_;
 
   // if this is false, laser measurements will be ignored (except for init)
   bool use_laser_;
@@ -93,8 +95,168 @@ class UKF {
   // Augmented state dimension
   int n_aug_;
 
+  // Number of sigma points
+  int n_sig_;
+
+  //sqrt(lambda_ + n_aug_)
+  double lambda_plus_aug_;
+
+  // Temp value of predicted augmented state: Dims: [n_aug_, n_sig_]
+  Eigen::MatrixXd Xsig_aug_;
   // Sigma point spreading parameter
   double lambda_;
+
+  // NIS
+  double nis_radar_;
+  double nis_lidar_;
+
+
+  /////////////////////////////////////////
+  //
+  //  
+  // Functions more-or-less from the exercises
+  //
+  /////////////////////////////////////////
+  inline void AugmentedSigmaPoints() {
+    Eigen::VectorXd x_aug(n_aug_);
+    Eigen::MatrixXd P_aug(n_aug_, n_aug_);
+    
+    x_aug.setZero();
+    x_aug.head(5) = x_;
+
+    P_aug.setZero();
+    P_aug.topLeftCorner(5, 5) = P_;
+    P_aug(5, 5) = std_a_ * std_a_;
+    P_aug(6, 6) = std_yawdd_ * std_yawdd_;
+
+    Eigen::MatrixXd A = P_aug.llt().matrixL();
+
+    // set first column of sigma point matrix
+    Xsig_aug_.col(0) = x_aug;
+
+    // set remaining sigma points
+    for (int i = 0; i < n_aug_; ++i) {
+      Xsig_aug_.col(i + 1) = x_aug + lambda_plus_aug_ * A.col(i);
+      Xsig_aug_.col(i + 1 + n_aug_) = x_aug - lambda_plus_aug_ * A.col(i);
+    }
+  }
+
+  inline void SigmaPointsPrediction(double delta_t) {
+    for (int i = 0; i < 2 * n_aug_ + 1; ++i) {
+      double p_x = Xsig_aug_(0, i);
+      double p_y = Xsig_aug_(1, i);
+      double v = Xsig_aug_(2, i);
+      double yaw = Xsig_aug_(3, i);
+      double yawd = Xsig_aug_(4, i);
+      double nu_a = Xsig_aug_(5, i);
+      double nu_yawdd = Xsig_aug_(6, i);
+
+      // predicted state values
+      double px_p;
+      double py_p;
+
+      // avoid division by zero
+      if (std::fabs(yawd) > 0.001) {
+        px_p = p_x + v / yawd * (sin(yaw + yawd * delta_t) - sin(yaw));
+        py_p = p_y + v / yawd * (cos(yaw) - cos(yaw + yawd * delta_t));
+      }
+      else {
+        px_p = p_x + v * delta_t * cos(yaw);
+        py_p = p_y + v * delta_t * sin(yaw);
+      }
+
+      double v_p = v;
+      double yaw_p = yaw + yawd * delta_t;
+      double yawd_p = yawd;
+
+      // add noise
+      px_p = px_p + 0.5 * nu_a * delta_t * delta_t * cos(yaw);
+      py_p = py_p + 0.5 * nu_a * delta_t * delta_t * sin(yaw);
+      v_p = v_p + nu_a * delta_t;
+
+      yaw_p = yaw_p + 0.5 * nu_yawdd * delta_t * delta_t;
+      yawd_p = yawd_p + nu_yawdd * delta_t;
+
+      // write predicted sigma point into right column
+      Xsig_pred_(0, i) = px_p;
+      Xsig_pred_(1, i) = py_p;
+      Xsig_pred_(2, i) = v_p;
+      Xsig_pred_(3, i) = yaw_p;
+      Xsig_pred_(4, i) = yawd_p;
+    }
+  }
+
+  inline void ComputeZpredSandResidual(MeasurementPackage meas_package, Eigen::VectorXd& z_pred, Eigen::MatrixXd& Zsig, Eigen::VectorXd& z, Eigen::MatrixXd& R, Eigen::MatrixXd S, Eigen::VectorXd& z_diff) {
+    
+    z_pred.setZero();
+
+    for (int i = 0; i < n_sig_; ++i) {
+      z_pred += weights_(i) * Zsig.col(i);
+    }
+
+    S.setZero();
+    for (int i = 0; i < n_sig_; ++i) {
+      Eigen::VectorXd z_diff_loc = Zsig.col(i) - z_pred;
+      if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+        z_diff_loc(1) = NormalizeAngle(z_diff_loc(1));
+      }
+      S += weights_(i) * z_diff_loc * z_diff_loc.transpose();
+    }
+
+    S += R;
+
+    // Residual
+    z_diff = z - z_pred;
+
+  }
+
+  inline double NormalizeAngle(double angle) {
+    while (angle > M_PI) {
+      angle -= 2.0 * M_PI;
+    }
+    while (angle < -M_PI) {
+      angle += 2.0 * M_PI;
+    }
+    return angle;
+  }
+
+  inline void MeasurementUpdate(MeasurementPackage& measurement_package, Eigen::MatrixXd& Zsig, int n_z, Eigen::MatrixXd& S, Eigen::MatrixXd& z_pred, Eigen::VectorXd& z_diff) {
+
+    Eigen::MatrixXd Tc(n_x_, n_z);
+    Tc.fill(0.0);
+    for (int i = 0; i < n_sig_; ++i) {
+      // residual
+      Eigen::VectorXd z_diff = Zsig.col(i) - z_pred;
+
+      if (measurement_package.sensor_type_ == MeasurementPackage::RADAR) {
+        z_diff(1) = NormalizeAngle(z_diff(1));
+      }
+
+      Eigen::VectorXd x_diff = Xsig_pred_.col(i) - x_;
+      x_diff(3) = NormalizeAngle(x_diff(3));
+
+      Tc += weights_(i) * x_diff * z_diff.transpose();
+    }
+
+    // Kalman gain K;
+    Eigen::MatrixXd Si = S.inverse();
+    Eigen::MatrixXd K = Tc * Si;
+
+    // Angle normalization
+    if (measurement_package.sensor_type_ == MeasurementPackage::RADAR) {
+      z_diff(1) = NormalizeAngle(z_diff(1));
+    }
+
+    x_ += K * z_diff;
+    P_ -= K * S * K.transpose();
+
+    if (measurement_package.sensor_type_ == MeasurementPackage::RADAR) {
+      nis_radar_ = z_diff.transpose() * Si * z_diff;
+    }
+    else if (measurement_package.sensor_type_ == MeasurementPackage::LASER) {
+      nis_lidar_ = z_diff.transpose() * Si * z_diff;
+    }
+  }
 };
 
 #endif  // UKF_H

@@ -115,7 +115,7 @@ void UKF::Prediction(double delta_t) {
    * and the state covariance matrix.
    */
   
-  AugmentedSigmaPoints();
+  AugmentSigmaPoints();
   SigmaPointsPrediction(delta_t);
   PredictMeanAndCovariance();
 

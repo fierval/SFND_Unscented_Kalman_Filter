@@ -6,6 +6,7 @@
 class MeasurementPackage {
 public:
   long timestamp_;
+  inline bool is_radar() { return sensor_type_ == SensorType::RADAR; }
 
   enum SensorType : int{
     LASER = 0,

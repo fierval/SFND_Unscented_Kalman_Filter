@@ -110,12 +110,11 @@ class UKF {
 
 
   /////////////////////////////////////////
-  //
   //  
   // Functions more-or-less from the exercises
   //
   /////////////////////////////////////////
-  inline void AugmentedSigmaPoints() {
+  inline void AugmentSigmaPoints() {
     Eigen::VectorXd x_aug(n_aug_);
     Eigen::MatrixXd P_aug(n_aug_, n_aug_);
     
@@ -196,7 +195,7 @@ class UKF {
     S.setZero();
     for (int i = 0; i < n_sig_; ++i) {
       Eigen::VectorXd z_diff_loc = Zsig.col(i) - z_pred;
-      if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+      if (meas_package.is_radar()) {
         z_diff_loc(1) = NormalizeAngle(z_diff_loc(1));
       }
       S += weights_(i) * z_diff_loc * z_diff_loc.transpose();
@@ -227,7 +226,7 @@ class UKF {
       // residual
       Eigen::VectorXd z_diff = Zsig.col(i) - z_pred;
 
-      if (measurement_package.sensor_type_ == MeasurementPackage::RADAR) {
+      if (measurement_package.is_radar()) {
         z_diff(1) = NormalizeAngle(z_diff(1));
       }
 
@@ -242,7 +241,7 @@ class UKF {
     Eigen::MatrixXd K = Tc * Si;
 
     // Angle normalization
-    if (measurement_package.sensor_type_ == MeasurementPackage::RADAR) {
+    if (measurement_package.is_radar()) {
       z_diff(1) = NormalizeAngle(z_diff(1));
     }
 
@@ -251,6 +250,32 @@ class UKF {
 
     nis_[static_cast<int>(measurement_package.sensor_type_)] = z_diff.transpose() * Si * z_diff;
   }
+
+  inline void PredictMeanAndCovariance() {
+    Eigen::VectorXd x(n_x_);
+    
+    x.setZero();
+    
+    for (int i = 0; i < n_sig_; ++i) {
+      x += weights_(i) * Xsig_pred_.col(i);
+    }
+
+    Eigen::MatrixXd P(n_x_, n_x_);
+
+    P.setZero();
+
+    Eigen::VectorXd x_diff;
+    for (int i = 0; i < n_sig_; ++i) {  // iterate over sigma points
+      x_diff = Xsig_pred_.col(i) - x;
+      x_diff(3) = NormalizeAngle(x_diff(3));
+
+      P += weights_(i) * x_diff * x_diff.transpose();
+    }
+
+    x_ = x;
+    P_ = P;
+  }
+
 };
 
 #endif  // UKF_H

@@ -43,9 +43,8 @@ class UKF {
   void UpdateRadar(MeasurementPackage meas_package);
 
 
-  // initially set to -1
-  // increment as each sensor initialization is complete
-  int is_initialized_;
+  // initially set to false. Set to true once initialized the UKF state from either sensor
+  bool is_initialized_;
 
   // if this is false, laser measurements will be ignored (except for init)
   bool use_laser_;

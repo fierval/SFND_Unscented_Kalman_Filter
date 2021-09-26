@@ -115,6 +115,10 @@ void UKF::Prediction(double delta_t) {
    * and the state covariance matrix.
    */
   
+  AugmentedSigmaPoints();
+  SigmaPointsPrediction(delta_t);
+  PredictMeanAndCovariance();
+
 }
 
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
@@ -124,11 +128,14 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    * covariance, P_.
    * You can also calculate the lidar NIS, if desired.
    */
-  if (is_initialized_++ <= 0) {
+  if (!is_initialized_) {
     x_.head(2) << meas_package.raw_measurements_.head(2);
-    return;
+    is_initialized_ = true;
   }
 
+  double delta_t = static_cast<double>(meas_package.timestamp_ - time_us_) / 1000000.0;
+  time_us_ = meas_package.timestamp_;
+  Prediction(delta_t);
 
   int n_z = 2;
   Eigen::MatrixXd S(n_z, n_z);  // Measurement covariance matrix (n_z = 2 for lidar, n_z = 3 for radar)
@@ -162,7 +169,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
    * You can also calculate the radar NIS, if desired.
    * 
    */
-  if (is_initialized_++ <= 0) {
+  if (!is_initialized_) {
 
     double r = meas_package.raw_measurements_[0];
     double phi = meas_package.raw_measurements_[1];
@@ -174,9 +181,13 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
       r * cos_phi,
       r* sin_phi,
       r_dot; // not quite!
-    
-    return;
+
+    is_initialized_ = true;
   }
+
+  double delta_t = static_cast<double>(meas_package.timestamp_ - time_us_) / 1000000.0;
+  time_us_ = meas_package.timestamp_;
+  Prediction(delta_t);
 
   int n_z = 3;
   Eigen::MatrixXd S(n_z, n_z);  // Measurement covariance matrix (n_z = 2 for lidar, n_z = 3 for radar)

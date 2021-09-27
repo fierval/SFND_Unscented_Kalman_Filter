@@ -7,8 +7,7 @@ using Eigen::VectorXd;
 /**
  * Initializes Unscented Kalman filter
  */
-UKF::UKF() 
-  : nis_(2) {
+UKF::UKF()  {
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = true;
 
@@ -58,6 +57,7 @@ UKF::UKF()
 
   n_aug_ = 7;
   n_x_ = 5;
+  lambda_ = 3 - n_x_;
 
   n_sig_ = 2 * n_aug_ + 1;
 
@@ -68,13 +68,17 @@ UKF::UKF()
   weights_.fill(0.5 / (lambda_ + n_aug_));
   weights_(0) = lambda_ / (lambda_ + n_aug_);
 
-  is_initialized_ = -1;
+  is_initialized_ = false;
   lambda_plus_aug_ = std::sqrt(lambda_ + n_aug_);
 
   // pre-init useful vars
   P_.setIdentity();
+  
+  // we are initializing with the lidar
+  P_(0, 0) = 0.01;
+  P_(1, 1) = 0.001;
+  
   x_.setZero();
-  std::fill_n(nis_.begin(), 2, 0);
 }
 
 UKF::~UKF() {}
@@ -87,6 +91,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   
   // Initialization is delegated to each sensor.
   // Makes for cleaner code
+  if (!is_initialized_) {
+    time_us_ = meas_package.timestamp_;
+  }
+
   switch (meas_package.sensor_type_)
   {
   case MeasurementPackage::SensorType::LASER:
@@ -105,6 +113,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     break;
   }
 
+  // make sure we tick correctly after initialization
   time_us_ = meas_package.timestamp_;
 }
 
@@ -129,7 +138,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
    * You can also calculate the lidar NIS, if desired.
    */
   if (!is_initialized_) {
-    x_.head(2) << meas_package.raw_measurements_.head(2);
+    x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0, 0;
     is_initialized_ = true;
   }
 
@@ -144,8 +153,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   Eigen::MatrixXd Zsig(n_z, n_sig_);
 
   // transform sigma points into measurement space
-  Zsig.row(0) = Xsig_pred_.row(0);
-  Zsig.row(1) = Xsig_pred_.row(1);
+  for (int i = 0; i < n_sig_; i++) {
+    Zsig(0, i) = Xsig_pred_(0, i);
+    Zsig(1, i) = Xsig_pred_(1, i);
+  }
 
   Eigen::MatrixXd R(n_z, n_z);
   Eigen::VectorXd z(n_z);

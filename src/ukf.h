@@ -105,9 +105,6 @@ class UKF {
   // Sigma point spreading parameter
   double lambda_;
 
-  // NIS
-  std::vector<double> nis_;
-
 
   /////////////////////////////////////////
   //  
@@ -183,7 +180,7 @@ class UKF {
     }
   }
 
-  inline void ComputeZpredSandResidual(MeasurementPackage meas_package, Eigen::VectorXd& z_pred, Eigen::MatrixXd& Zsig, Eigen::VectorXd& z, Eigen::MatrixXd& R, Eigen::MatrixXd S, Eigen::VectorXd& z_diff) {
+  inline void ComputeZpredSandResidual(MeasurementPackage meas_package, Eigen::VectorXd& z_pred, Eigen::MatrixXd& Zsig, Eigen::VectorXd& z, Eigen::MatrixXd& R, Eigen::MatrixXd& S, Eigen::VectorXd& z_diff) {
 
     // z_pred
     z_pred.setZero();
@@ -247,8 +244,6 @@ class UKF {
 
     x_ += K * z_diff;
     P_ -= K * S * K.transpose();
-
-    nis_[static_cast<int>(measurement_package.sensor_type_)] = z_diff.transpose() * Si * z_diff;
   }
 
   inline void PredictMeanAndCovariance() {

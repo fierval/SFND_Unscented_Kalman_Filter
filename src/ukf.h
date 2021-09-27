@@ -190,8 +190,10 @@ class UKF {
 
     // S - covariance
     S.setZero();
+    Eigen::VectorXd z_diff_loc;
+
     for (int i = 0; i < n_sig_; ++i) {
-      Eigen::VectorXd z_diff_loc = Zsig.col(i) - z_pred;
+      z_diff_loc = Zsig.col(i) - z_pred;
       if (meas_package.is_radar()) {
         z_diff_loc(1) = NormalizeAngle(z_diff_loc(1));
       }

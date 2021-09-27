@@ -136,7 +136,7 @@ class UKF {
   }
 
   inline void SigmaPointsPrediction(double delta_t) {
-    for (int i = 0; i < 2 * n_aug_ + 1; ++i) {
+    for (int i = 0; i < n_sig_; ++i) {
       double p_x = Xsig_aug_(0, i);
       double p_y = Xsig_aug_(1, i);
       double v = Xsig_aug_(2, i);

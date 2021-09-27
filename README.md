@@ -13,11 +13,9 @@ The main program can be built and ran by doing the following from the project to
 4. make
 5. ./ukf_highway
 
-Note that the programs that need to be written to accomplish the project are src/ukf.cpp, and src/ukf.h
+Wathc the video:
 
-The program main.cpp has already been filled out, but feel free to modify it.
-
-<img src="media/ukf_highway.png" width="700" height="400" />
+[![Watch the video](https://i.imgur.com/3bDJI18FrS0.png)](https://youtu.be/3bDJI18FrS0)
 
 `main.cpp` is using `highway.h` to create a straight 3 lane highway environment with 3 traffic cars and the main ego car at the center. 
 The viewer scene is centered around the ego car and the coordinate system is relative to the ego car as well. The ego car is green while the 
@@ -35,7 +33,8 @@ The red spheres above cars represent the (x,y) lidar detection and the purple li
   * Linux: make is installed by default on most Linux distros
   * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
   * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
+* gcc/g++ >= 7.5
+  * C++17
   * Linux: gcc / g++ is installed by default on most Linux distros
   * Mac: same deal as make - [install Xcode command line tools](https://developer.apple.com/xcode/features/)
   * Windows: recommend using [MinGW](http://www.mingw.org/)
